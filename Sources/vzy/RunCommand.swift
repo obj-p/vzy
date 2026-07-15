@@ -57,8 +57,20 @@ struct RunCommand: ParsableCommand {
         Darwin.exit(process.terminationStatus)
     }
 
+    /// The VZKit package the script compiles against. A Homebrew install
+    /// keeps the package sources beside the binary's real file (libexec),
+    /// so a manifest next to the executable wins; otherwise this is a dev
+    /// build and `#filePath` points into the checkout.
     static var packageRoot: URL {
-        URL(filePath: #filePath)
+        if let executable = Bundle.main.executableURL?.resolvingSymlinksInPath() {
+            let adjacent = executable.deletingLastPathComponent()
+            if FileManager.default.fileExists(
+                atPath: adjacent.appending(path: "Package.swift").path
+            ) {
+                return adjacent
+            }
+        }
+        return URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -74,7 +86,7 @@ struct RunCommand: ParsableCommand {
         let package = Package(
             name: "vzscript",
             platforms: [.macOS(.v14)],
-            dependencies: [.package(path: \"\(packageRoot.path)\")],
+            dependencies: [.package(name: \"vzy\", path: \"\(packageRoot.path)\")],
             targets: [
                 .executableTarget(
                     name: "vzscript",

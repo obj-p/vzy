@@ -1,0 +1,61 @@
+name: CI
+
+# Runs on GitHub-hosted macos-15: the suite is ~1 minute of pure-logic
+# tests, so hosted spin-up beats maintaining a self-hosted runner
+# (contrast PreviewsMCP, whose 50-70 min hosted runs forced the Mac
+# mini). The `ci` job is the required status check on main. Applying
+# the `merge` label arms GitHub auto-merge (squash), which lands the PR
+# once `ci` is green and the branch is up to date.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    # Weekly heartbeat (Sunday 05:00 UTC): catches hosted-image and
+    # toolchain drift while the repo is quiet.
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Arm GitHub auto-merge the moment `merge` is applied. Auto-merge
+  # waits for the required `ci` check and an up-to-date branch, then
+  # squash-merges.
+  arm-merge:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'merge'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash
+
+  ci:
+    # The required status check. Runs on every PR push; label events
+    # only trigger arm-merge and would duplicate the run for the same
+    # commit, so they're excluded here.
+    if: github.event_name != 'pull_request' || github.event.action != 'labeled'
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # build.sh also exercises the codesign + entitlement path; ad-hoc
+      # signing works headless.
+      - name: Build and sign
+        run: ./build.sh debug
+
+      - name: Test
+        run: swift test

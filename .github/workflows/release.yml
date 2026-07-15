@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and sign release binary
+        run: ./build.sh release
+
+      # `vzy run` compiles user scripts against the VZKit sources beside
+      # the binary's real file, so the tarball carries the package tree
+      # (Tests/ included — the manifest declares the test target, so SPM
+      # requires the directory) alongside the signed binary.
+      - name: Stage versioned artifact
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          STAGING="vzy-${VERSION}-darwin-arm64"
+          mkdir "$STAGING"
+          cp "$(swift build -c release --show-bin-path)/vzy" "$STAGING/"
+          cp Package.swift Package.resolved "$STAGING/"
+          cp -R Sources Tests Resources examples "$STAGING/"
+          tar -czf "${STAGING}.tar.gz" "$STAGING"
+          shasum -a 256 "${STAGING}.tar.gz" > "${STAGING}.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          STAGING="vzy-${VERSION}-darwin-arm64"
+          gh release create "v${VERSION}" \
+            "${STAGING}.tar.gz" \
+            "${STAGING}.tar.gz.sha256" \
+            --title "v${VERSION}" \
+            --generate-notes
+
+      - name: Update Homebrew tap
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set, skipping Homebrew tap update"
+            exit 0
+          fi
+
+          STAGING="vzy-${VERSION}-darwin-arm64"
+          SHA256="$(awk '{print $1}' "${STAGING}.tar.gz.sha256")"
+          URL="https://github.com/obj-p/vzy/releases/download/v${VERSION}/${STAGING}.tar.gz"
+
+          bash scripts/generate-formula.sh "$VERSION" "$URL" "$SHA256" > vzy.rb
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/obj-p/homebrew-tap.git" tap-repo
+          mkdir -p tap-repo/Formula
+          cp vzy.rb tap-repo/Formula/vzy.rb
+          cd tap-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/vzy.rb
+          if git diff --cached --quiet; then
+            echo "Formula already up to date"
+            exit 0
+          fi
+          git commit -m "vzy ${VERSION}"
+          git push origin main
