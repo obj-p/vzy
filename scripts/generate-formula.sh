@@ -11,6 +11,7 @@ cat <<EOF
 class Vzy < Formula
   desc "Swift VM harness for reproducible macOS guests via Virtualization.framework"
   homepage "https://github.com/obj-p/vzy"
+  license "MIT"
   version "${VERSION}"
 
   url "${URL}"
