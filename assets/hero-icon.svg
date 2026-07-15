@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="vzy">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <!-- A lightweight isometric cube for the disposable VM. -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M67 104 128 72l61 32v70l-61 34-61-34Z"/>
+    <path d="m67 104 61 34 61-34"/>
+    <path d="M128 138v70"/>
+  </g>
+
+  <!-- Fizzy bubbles rising through and out of the cube. -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="5">
+    <circle cx="97" cy="151" r="8"/>
+    <circle cx="154" cy="168" r="6"/>
+    <circle cx="143" cy="116" r="9"/>
+    <circle cx="111" cy="96" r="6"/>
+    <circle cx="145" cy="58" r="7"/>
+    <circle cx="170" cy="43" r="4"/>
+  </g>
+</svg>
