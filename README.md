@@ -4,7 +4,7 @@
 
 # vzy
 
-`vzy` is a Swift VM harness for provisioning and driving disposable macOS
+`vzy` is a Swift VM harness for provisioning and driving reproducible macOS
 guests with `Virtualization.framework`.
 
 It can install macOS from an IPSW into a bundle, boot and stop that VM, create
@@ -25,13 +25,6 @@ binary with the virtualization entitlement required at runtime.
 
 ```sh
 ./build.sh debug
-```
-
-The binary is written under SwiftPM's build directory. To make it easy to call
-from anywhere:
-
-```sh
-ln -sf "$(swift build -c debug --show-bin-path)/vzy" /usr/local/bin/vzy
 ```
 
 ## Basic Flow
@@ -72,9 +65,13 @@ Stop the VM:
 vzy stop ~/VMs/work.vm
 ```
 
-## Notes
+## Swift Scripts
 
-- Downloaded IPSWs are cached under `~/.cache/vz/ipsw/`.
-- VM bundles contain generated SSH keys and mutable guest disks; keep them out
-  of git.
-- `Resources/vzy.entitlements` is used by `build.sh` for ad-hoc signing.
+`vzy run` compiles and signs a Swift file against `VZKit`, then runs it with
+the virtualization entitlement. For example, the bundled
+[`guest-info.swift`](examples/guest-info.swift) script boots a guest, waits for
+SSH, prints its macOS version, and stops it:
+
+```sh
+vzy run examples/guest-info.swift ~/VMs/work.vm
+```
