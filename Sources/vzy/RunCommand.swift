@@ -32,8 +32,10 @@ struct RunCommand: ParsableCommand {
         let packageRoot = Self.packageRoot
         let entitlements = packageRoot.appending(path: "Resources/vzy.entitlements")
 
-        let digest = SHA256.hash(data: Data((source + packageRoot.path).utf8))
-        let hash = digest.hexString.prefix(16)
+        // One shared package per package root: VZKit compiles once and every
+        // script build after that is incremental. main.swift is swapped per
+        // run, and swift build's own change tracking keeps rebuilds minimal.
+        let hash = SHA256.hash(data: Data(packageRoot.path.utf8)).hexString.prefix(16)
         let cacheDir = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".cache/vz-run/\(hash)")
 

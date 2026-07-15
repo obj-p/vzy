@@ -25,18 +25,19 @@ jobs:
         run: ./build.sh release
 
       # `vzy run` compiles user scripts against the VZKit sources beside
-      # the binary's real file, so the tarball carries the package tree
-      # (Tests/ included — the manifest declares the test target, so SPM
-      # requires the directory) alongside the signed binary.
+      # the binary's real file, so the tarball carries the library targets
+      # plus the run-only manifest (VZKit + VZKitObjC, no argument-parser
+      # dependency and no test target) alongside the signed binary.
       - name: Stage versioned artifact
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           STAGING="vzy-${VERSION}-darwin-arm64"
-          mkdir "$STAGING"
+          mkdir -p "$STAGING/Sources"
           cp "$(swift build -c release --show-bin-path)/vzy" "$STAGING/"
-          cp Package.swift Package.resolved "$STAGING/"
-          cp -R Sources Tests Resources examples "$STAGING/"
+          cp scripts/Package.run.swift "$STAGING/Package.swift"
+          cp -R Sources/VZKit Sources/VZKitObjC "$STAGING/Sources/"
+          cp -R Resources examples "$STAGING/"
           tar -czf "${STAGING}.tar.gz" "$STAGING"
           shasum -a 256 "${STAGING}.tar.gz" > "${STAGING}.tar.gz.sha256"
 
