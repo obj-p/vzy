@@ -39,4 +39,11 @@ struct IPSWStoreTests {
             try await IPSWStore.resolve("https://example.com/")
         }
     }
+
+    @Test func remoteURLSourceWithoutFilenameThrowsBeforeTouchingCache() async throws {
+        let url = try #require(URL(string: "https://example.com/"))
+        await #expect(throws: VMError.self) {
+            try await IPSWStore.resolve(.remoteURL(url))
+        }
+    }
 }

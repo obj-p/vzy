@@ -103,9 +103,6 @@ public enum IPSWStore {
             guard let url = URL(string: raw), url.host() != nil else {
                 throw VMError("not a valid URL: \(raw)")
             }
-            guard !url.lastPathComponent.isEmpty, url.lastPathComponent != "/" else {
-                throw VMError("URL has no IPSW filename to cache under: \(raw)")
-            }
             return try await resolve(.remoteURL(url))
         }
         let expanded = (raw as NSString).expandingTildeInPath
@@ -119,10 +116,14 @@ public enum IPSWStore {
     }
 
     private static func downloadIfNeeded(remote: URL) async throws -> URL {
+        let filename = remote.lastPathComponent
+        guard !filename.isEmpty, filename != "/" else {
+            throw VMError("URL has no IPSW filename to cache under: \(remote.absoluteString)")
+        }
         try FileManager.default.createDirectory(
             at: cacheDirectory, withIntermediateDirectories: true
         )
-        let destination = cacheDirectory.appending(path: remote.lastPathComponent)
+        let destination = cacheDirectory.appending(path: filename)
         if FileManager.default.fileExists(atPath: destination.path) {
             Log.info("using cached IPSW at \(destination.path)")
             return destination
