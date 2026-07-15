@@ -12,20 +12,18 @@ enum BundleFixture {
     }
     """
 
-    static func makeDirectory() throws -> URL {
+    static func withDirectory(_ body: (URL) throws -> Void) throws {
         let dir = FileManager.default.temporaryDirectory
             .appending(path: "vzy-test-bundle-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try body(dir)
     }
 
-    static func makeBundle() throws -> VMBundle {
-        let dir = try makeDirectory()
-        try Data(configJSON.utf8).write(to: dir.appending(path: "config.json"))
-        return try VMBundle(directory: dir)
-    }
-
-    static func remove(_ bundle: VMBundle) {
-        try? FileManager.default.removeItem(at: bundle.url)
+    static func withBundle(_ body: (VMBundle) throws -> Void) throws {
+        try withDirectory { dir in
+            try Data(configJSON.utf8).write(to: dir.appending(path: "config.json"))
+            try body(VMBundle(directory: dir))
+        }
     }
 }
