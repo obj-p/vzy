@@ -116,16 +116,28 @@ public enum IPSWStore {
         return try await resolve(.localFile(url))
     }
 
-    /// `<cacheDirectory>/<sha256(url) prefix>-<basename>`. The hash keeps
+    /// `<cacheDirectory>/<sha256 prefix>-<basename>`. The hash keeps
     /// distinct URLs that share a filename from colliding in the cache.
+    /// It covers host, port, and path only — never the query or fragment —
+    /// so a rotating signed-URL token still hits the cache.
     static func cacheDestination(for remote: URL) throws -> URL {
         let filename = remote.lastPathComponent
         guard !filename.isEmpty, filename != "/" else {
             throw VMError("URL has no IPSW filename to cache under: \(remote.absoluteString)")
         }
-        let digest = SHA256.hash(data: Data(remote.absoluteString.utf8))
-        let prefix = digest.map { String(format: "%02x", $0) }.joined().prefix(12)
+        let key = "\(remote.host() ?? ""):\(remote.port ?? -1)\(remote.path())"
+        let prefix = SHA256.hash(data: Data(key.utf8)).hexString.prefix(12)
         return cacheDirectory.appending(path: "\(prefix)-\(filename)")
+    }
+
+    /// Delete a cache entry left by the pre-hash naming scheme (bare
+    /// basename). Its source URL is unknown, so it can't be adopted as
+    /// this URL's content — remove it rather than migrate it.
+    static func reapLegacyCacheEntry(for remote: URL, in directory: URL = cacheDirectory) {
+        let legacy = directory.appending(path: remote.lastPathComponent)
+        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
+        Log.info("removing stale IPSW cache entry from the old naming scheme: \(legacy.path)")
+        try? FileManager.default.removeItem(at: legacy)
     }
 
     /// Throw unless the download response is a success. `URLSession.download`
@@ -145,6 +157,7 @@ public enum IPSWStore {
         try FileManager.default.createDirectory(
             at: cacheDirectory, withIntermediateDirectories: true
         )
+        reapLegacyCacheEntry(for: remote)
         if FileManager.default.fileExists(atPath: destination.path) {
             Log.info("using cached IPSW at \(destination.path)")
             return destination
@@ -178,7 +191,12 @@ public enum IPSWStore {
         } catch {
             throw VMError("IPSW download failed", underlying: error)
         }
-        try validateDownloadResponse(response, from: remote)
+        do {
+            try validateDownloadResponse(response, from: remote)
+        } catch {
+            try? FileManager.default.removeItem(at: temp)
+            throw error
+        }
 
         // URLSession's "temp" file is unlinked when the next download
         // begins, so atomic-move it into the cache before returning.

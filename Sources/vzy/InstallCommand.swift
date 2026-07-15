@@ -121,7 +121,7 @@ struct InstallCommand: AsyncParsableCommand {
             \(bundle.url.path)
 
           Re-run without --skip-install to drive VZMacOSInstaller against
-          \(ipswURL.lastPathComponent).
+          \(ipswURL.path).
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         """

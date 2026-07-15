@@ -2,6 +2,7 @@ import ArgumentParser
 import CryptoKit
 import Darwin
 import Foundation
+import VZKit
 
 struct RunCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -32,7 +33,7 @@ struct RunCommand: ParsableCommand {
         let entitlements = packageRoot.appending(path: "Resources/vzy.entitlements")
 
         let digest = SHA256.hash(data: Data((source + packageRoot.path).utf8))
-        let hash = digest.map { String(format: "%02x", $0) }.joined().prefix(16)
+        let hash = digest.hexString.prefix(16)
         let cacheDir = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".cache/vz-run/\(hash)")
 

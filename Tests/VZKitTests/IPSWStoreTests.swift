@@ -67,6 +67,36 @@ struct IPSWStoreTests {
         )
     }
 
+    @Test func cacheDestinationIgnoresQueryAndFragment() throws {
+        let tokenA = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw?token=aaa"))
+        )
+        let tokenB = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw?token=bbb#frag"))
+        )
+        let bare = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw"))
+        )
+        #expect(tokenA == bare)
+        #expect(tokenB == bare)
+    }
+
+    @Test func reapLegacyCacheEntryRemovesBareBasenameFile() throws {
+        let url = try #require(URL(string: "https://example.com/restore.ipsw"))
+        try BundleFixture.withDirectory { dir in
+            let legacy = dir.appending(path: "restore.ipsw")
+            let hashed = dir.appending(path: "abcdef123456-restore.ipsw")
+            try Data("old".utf8).write(to: legacy)
+            try Data("new".utf8).write(to: hashed)
+
+            IPSWStore.reapLegacyCacheEntry(for: url, in: dir)
+            #expect(!FileManager.default.fileExists(atPath: legacy.path))
+            #expect(FileManager.default.fileExists(atPath: hashed.path))
+
+            IPSWStore.reapLegacyCacheEntry(for: url, in: dir)
+        }
+    }
+
     @Test func cacheDestinationThrowsWithoutFilename() throws {
         let url = try #require(URL(string: "https://example.com/"))
         #expect(throws: VMError.self) {
