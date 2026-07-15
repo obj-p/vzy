@@ -1,13 +1,14 @@
+import CryptoKit
 import Foundation
 import Virtualization
 
 /// IPSW resolution + on-disk cache.
 ///
 /// Apple ships restore images as `.ipsw` files at multi-GB URLs on the
-/// CDN. The cache lives at `~/.cache/vz/ipsw/` keyed by the
-/// basename of the source URL (Apple includes the build version in the
-/// filename, so this is stable enough). Multiple bundles installed from
-/// the same IPSW share one cached file.
+/// CDN. The cache lives at `~/.cache/vz/ipsw/` keyed by a hash of the
+/// full source URL plus its basename, so distinct URLs that share a
+/// filename can't collide. Multiple bundles installed from the same
+/// IPSW share one cached file.
 ///
 /// Three input shapes resolve to a local IPSW file:
 ///
@@ -115,15 +116,35 @@ public enum IPSWStore {
         return try await resolve(.localFile(url))
     }
 
-    private static func downloadIfNeeded(remote: URL) async throws -> URL {
+    /// `<cacheDirectory>/<sha256(url) prefix>-<basename>`. The hash keeps
+    /// distinct URLs that share a filename from colliding in the cache.
+    static func cacheDestination(for remote: URL) throws -> URL {
         let filename = remote.lastPathComponent
         guard !filename.isEmpty, filename != "/" else {
             throw VMError("URL has no IPSW filename to cache under: \(remote.absoluteString)")
         }
+        let digest = SHA256.hash(data: Data(remote.absoluteString.utf8))
+        let prefix = digest.map { String(format: "%02x", $0) }.joined().prefix(12)
+        return cacheDirectory.appending(path: "\(prefix)-\(filename)")
+    }
+
+    /// Throw unless the download response is a success. `URLSession.download`
+    /// only throws on transport errors, so without this a 404/403 error body
+    /// would be cached as the IPSW.
+    static func validateDownloadResponse(_ response: URLResponse, from remote: URL) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            throw VMError(
+                "IPSW download from \(remote.absoluteString) failed: HTTP \(http.statusCode)"
+            )
+        }
+    }
+
+    private static func downloadIfNeeded(remote: URL) async throws -> URL {
+        let destination = try cacheDestination(for: remote)
         try FileManager.default.createDirectory(
             at: cacheDirectory, withIntermediateDirectories: true
         )
-        let destination = cacheDirectory.appending(path: filename)
         if FileManager.default.fileExists(atPath: destination.path) {
             Log.info("using cached IPSW at \(destination.path)")
             return destination
@@ -151,11 +172,13 @@ public enum IPSWStore {
         defer { progressTask.cancel() }
 
         let temp: URL
+        let response: URLResponse
         do {
-            (temp, _) = try await session.download(from: remote)
+            (temp, response) = try await session.download(from: remote)
         } catch {
             throw VMError("IPSW download failed", underlying: error)
         }
+        try validateDownloadResponse(response, from: remote)
 
         // URLSession's "temp" file is unlinked when the next download
         // begins, so atomic-move it into the cache before returning.
