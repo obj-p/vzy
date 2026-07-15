@@ -261,7 +261,7 @@ extension SetupAssistantSequence {
         "<": 0x2C, ">": 0x2E, "?": 0x2F,
     ]
 
-    private static func shiftedAsciiBase(for c: Character) -> UInt32? {
+    static func shiftedAsciiBase(for c: Character) -> UInt32? {
         if let base = shiftedAsciiBases[c] { return base }
         guard let scalar = c.unicodeScalars.first else { return nil }
         let v = scalar.value
@@ -295,7 +295,7 @@ extension SetupAssistantSequence {
         .f10: RFBClient.KeySym.f10, .f11: RFBClient.KeySym.f11, .f12: RFBClient.KeySym.f12,
     ]
 
-    private static func keysym(for key: KeyboardScripter.Key) -> UInt32 {
+    static func keysym(for key: KeyboardScripter.Key) -> UInt32 {
         plainKeysyms[key] ?? 0
     }
 }

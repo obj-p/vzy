@@ -100,8 +100,11 @@ public enum IPSWStore {
             return try await resolve(.latestSupported)
         }
         if raw.hasPrefix("http://") || raw.hasPrefix("https://") {
-            guard let url = URL(string: raw) else {
+            guard let url = URL(string: raw), url.host() != nil else {
                 throw VMError("not a valid URL: \(raw)")
+            }
+            guard !url.lastPathComponent.isEmpty, url.lastPathComponent != "/" else {
+                throw VMError("URL has no IPSW filename to cache under: \(raw)")
             }
             return try await resolve(.remoteURL(url))
         }
