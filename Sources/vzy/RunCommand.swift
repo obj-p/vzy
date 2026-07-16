@@ -2,12 +2,12 @@ import ArgumentParser
 import CryptoKit
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 struct RunCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "run",
-        abstract: "Compile, codesign, and run a Swift script against VZKit."
+        abstract: "Compile, codesign, and run a Swift script against VZYKit."
     )
 
     @Argument(parsing: .captureForPassthrough, help: "Script path, then args passed to it.")
@@ -21,12 +21,12 @@ struct RunCommand: ParsableCommand {
     }
 
     /// Script binaries are cached content-addressed: `bin/<key>`, where the
-    /// key hashes the script source, the VZKit/VZKitObjC source closure,
+    /// key hashes the script source, the VZYKit/VZYKitObjC source closure,
     /// the entitlements, and the build recipe. An unchanged script re-runs
     /// instantly — no build, no lock — and published binaries are immutable,
     /// so concurrent runs (same or different scripts) can never execute each
     /// other's code. Cache misses serialize on `.build.lock` in the shared
-    /// package (one VZKit compile per install, incremental after) and
+    /// package (one VZYKit compile per install, incremental after) and
     /// publish by atomic rename of a signed staging copy.
     func run() throws {
         guard let scriptPath = items.first else {
@@ -157,7 +157,7 @@ struct RunCommand: ParsableCommand {
         }
     }
 
-    /// The VZKit package the script compiles against. A Homebrew install
+    /// The VZYKit package the script compiles against. A Homebrew install
     /// keeps the package sources beside the binary's real file (libexec),
     /// so a manifest next to the executable wins; otherwise this is a dev
     /// build and `#filePath` points into the checkout.
@@ -178,7 +178,7 @@ struct RunCommand: ParsableCommand {
 
     /// Everything that determines the built binary's bytes: script source,
     /// synthesized manifest, build flags, entitlements, the package-root
-    /// manifest, and every VZKit/VZKitObjC source file (headers included —
+    /// manifest, and every VZYKit/VZYKitObjC source file (headers included —
     /// a narrower closure would serve stale code after a library edit).
     static func cacheKey(
         source: String, manifest: String, entitlements: URL, packageRoot: URL
@@ -190,7 +190,7 @@ struct RunCommand: ParsableCommand {
         hasher.update(data: Data(toolchainIdentity().utf8))
         hasher.update(data: try read(entitlements))
         hasher.update(data: try read(packageRoot.appending(path: "Package.swift")))
-        for target in ["Sources/VZKit", "Sources/VZKitObjC"] {
+        for target in ["Sources/VZYKit", "Sources/VZYKitObjC"] {
             let root = packageRoot.appending(path: target)
             let paths = (FileManager.default.enumerator(atPath: root.path)?
                 .compactMap { $0 as? String } ?? []).sorted()
@@ -278,7 +278,7 @@ struct RunCommand: ParsableCommand {
             targets: [
                 .executableTarget(
                     name: "vzscript",
-                    dependencies: [.product(name: "VZKit", package: "vzy")]
+                    dependencies: [.product(name: "VZYKit", package: "vzy")]
                 )
             ]
         )

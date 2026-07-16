@@ -2,7 +2,7 @@ import AppKit
 import ArgumentParser
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 /// Drive Setup Assistant over the VNC transport (`_VZVNCServer` SPI +
 /// in-process RFB client), then provision SSH. Restores from a `post-sa`

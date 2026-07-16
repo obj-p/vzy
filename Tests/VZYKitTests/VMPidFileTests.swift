@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import VZKit
+@testable import VZYKit
 
 struct VMPidFileTests {
     @Test func writeReadRoundTrip() throws {

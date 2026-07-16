@@ -1,5 +1,5 @@
 import Testing
-@testable import VZKit
+@testable import VZYKit
 
 struct GuestTests {
     @Test func shellQuoteWrapsInSingleQuotes() {

@@ -1,4 +1,4 @@
-import VZKit
+import VZYKit
 
 let script = Script(
     usage: "vzy run examples/guest-info.swift <bundle> [admin-password]",

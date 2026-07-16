@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import VZKit
+@testable import VZYKit
 
 struct SnapshotStoreTests {
     func withRunnableBundle(_ body: (VMBundle) throws -> Void) throws {

@@ -1,7 +1,7 @@
 import ArgumentParser
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 /// `boot` blocks; `stop` signals it from another shell. SIGTERM lands on
 /// `SignalWaiter` in the boot process which then calls

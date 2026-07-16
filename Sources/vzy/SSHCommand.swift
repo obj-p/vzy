@@ -1,7 +1,7 @@
 import ArgumentParser
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 /// Connect to a booted bundle via SSH. The bundle's MAC is looked up in
 /// `/var/db/dhcpd_leases`, so we don't need IPC with the `boot` process —

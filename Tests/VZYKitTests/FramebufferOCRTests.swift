@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import VZKit
+@testable import VZYKit
 
 struct FramebufferOCRTests {
     func obs(_ text: String, x: CGFloat = 0, y: CGFloat = 0) -> FramebufferOCR.Observation {

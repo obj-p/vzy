@@ -1,5 +1,5 @@
 import Foundation
-@testable import VZKit
+@testable import VZYKit
 
 enum BundleFixture {
     static let configJSON = """

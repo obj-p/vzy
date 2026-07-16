@@ -77,5 +77,5 @@ jobs:
           STAGE="$(mktemp -d)"
           mkdir "$STAGE/Sources"
           cp scripts/Package.run.swift "$STAGE/Package.swift"
-          cp -R Sources/VZKit Sources/VZKitObjC "$STAGE/Sources/"
+          cp -R Sources/VZYKit Sources/VZYKitObjC "$STAGE/Sources/"
           swift build --package-path "$STAGE"

@@ -21,7 +21,7 @@ class Vzy < Formula
   depends_on arch: :arm64
 
   def install
-    # \`vzy run\` compiles Swift scripts against the VZKit sources beside
+    # \`vzy run\` compiles Swift scripts against the VZYKit sources beside
     # the binary's real file, so the whole package tree lands in libexec
     # and bin gets a symlink (the binary resolves symlinks when locating
     # its package root).

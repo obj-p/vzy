@@ -28,9 +28,9 @@ jobs:
       - name: Build and sign release binary
         run: ./build.sh release
 
-      # `vzy run` compiles user scripts against the VZKit sources beside
+      # `vzy run` compiles user scripts against the VZYKit sources beside
       # the binary's real file, so the tarball carries the library targets
-      # plus the run-only manifest (VZKit + VZKitObjC, no argument-parser
+      # plus the run-only manifest (VZYKit + VZYKitObjC, no argument-parser
       # dependency and no test target) alongside the signed binary.
       - name: Stage versioned artifact
         env:
@@ -39,7 +39,7 @@ jobs:
           mkdir -p "$STAGING/Sources"
           cp "$(swift build -c release --show-bin-path)/vzy" "$STAGING/"
           cp scripts/Package.run.swift "$STAGING/Package.swift"
-          cp -R Sources/VZKit Sources/VZKitObjC "$STAGING/Sources/"
+          cp -R Sources/VZYKit Sources/VZYKitObjC "$STAGING/Sources/"
           cp -R Resources examples "$STAGING/"
           tar -czf "${STAGING}.tar.gz" "$STAGING"
           shasum -a 256 "${STAGING}.tar.gz" > "${STAGING}.tar.gz.sha256"

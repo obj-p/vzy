@@ -1,7 +1,7 @@
 import ArgumentParser
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 /// Foreground-blocking boot. Drops the user back at their terminal while
 /// the VZ runloop drives the VM; another shell connects via `vz

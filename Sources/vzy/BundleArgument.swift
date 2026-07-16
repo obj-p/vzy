@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import VZKit
+import VZYKit
 
 /// Shared `@Argument` for subcommands that take a bundle path. Resolves
 /// `~` and relative paths against CWD before constructing the `VMBundle`.
@@ -8,7 +8,7 @@ struct BundleArgument: ParsableArguments {
     @Argument(
         help: ArgumentHelp(
             "Path to a vz bundle directory.",
-            discussion: "Bundle layout is documented in VZKit.VMBundle."
+            discussion: "Bundle layout is documented in VZYKit.VMBundle."
         )
     )
     var path: String

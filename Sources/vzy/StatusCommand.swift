@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import VZKit
+import VZYKit
 
 struct StatusCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

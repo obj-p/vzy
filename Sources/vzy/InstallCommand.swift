@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import VZKit
+import VZYKit
 
 /// Create a fresh bundle from an IPSW and run `VZMacOSInstaller` into it.
 ///
