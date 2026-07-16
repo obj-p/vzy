@@ -48,15 +48,19 @@ struct RunCommand: ParsableCommand {
         )
         let binary = cacheRoot.appending(path: "bin/\(key)")
 
-        // Fast path: the touch refreshes the LRU signal the sweep reads;
-        // a missing binary (never built, or evicted between check and
-        // exec) returns nil and falls through to a build.
+        // Fast path: the touch refreshes the LRU signal the sweep reads.
+        // ANY launch failure — missing, evicted, or a corrupt entry —
+        // falls through to a rebuild, which republishes a freshly signed
+        // binary (repairing corruption); a real environmental failure
+        // then surfaces on the post-build launch instead.
         try? FileManager.default.setAttributes(
             [.modificationDate: Date()], ofItemAtPath: binary.path
         )
-        if let status = try Self.launch(binary, arguments: scriptArgs) {
-            Darwin.exit(status)
-        }
+        do {
+            if let status = try Self.launch(binary, arguments: scriptArgs) {
+                Darwin.exit(status)
+            }
+        } catch {}
 
         try Self.buildAndPublish(
             binary: binary, cacheRoot: cacheRoot, source: source,
@@ -113,6 +117,9 @@ struct RunCommand: ParsableCommand {
         )
         let built = URL(filePath: builtDir).appending(path: "vzscript")
         let staged = stagingDir.appending(path: UUID().uuidString)
+        // After a successful rename the staged path no longer exists, so
+        // this only cleans up when copy/codesign/rename failed.
+        defer { try? FileManager.default.removeItem(at: staged) }
         try FileManager.default.copyItem(at: built, to: staged)
         try sh(
             "/usr/bin/codesign",
@@ -129,15 +136,14 @@ struct RunCommand: ParsableCommand {
     /// Housekeeping, callable only under the build lock: evict script
     /// binaries unused for `binaryMaxAge` (each fast-path use refreshes
     /// mtime), remove staging leftovers from crashed builds, and clear
-    /// top-level entries from cache layouts this scheme replaced.
+    /// the entries the pre-`package/` cache layout left at top level.
+    /// Deletions are allowlisted by name — never "everything unknown" —
+    /// so future additions to the cache root are safe from the sweep.
     static func sweepCache(cacheRoot: URL, binDir: URL, stagingDir: URL) {
         sweep(binDir, olderThan: binaryMaxAge)
         sweep(stagingDir, olderThan: stagingMaxAge)
-        let fm = FileManager.default
-        let current: Set<String> = ["package", "bin", "staging", ".build.lock"]
-        for entry in (try? fm.contentsOfDirectory(atPath: cacheRoot.path)) ?? []
-            where !current.contains(entry) {
-            try? fm.removeItem(at: cacheRoot.appending(path: entry))
+        for legacy in ["Package.swift", "Package.resolved", "Sources", ".build"] {
+            try? FileManager.default.removeItem(at: cacheRoot.appending(path: legacy))
         }
     }
 
@@ -181,10 +187,9 @@ struct RunCommand: ParsableCommand {
         hasher.update(data: Data(source.utf8))
         hasher.update(data: Data(manifest.utf8))
         hasher.update(data: Data("swift build -c release".utf8))
-        hasher.update(data: (try? Data(contentsOf: entitlements)) ?? Data())
-        hasher.update(
-            data: (try? Data(contentsOf: packageRoot.appending(path: "Package.swift"))) ?? Data()
-        )
+        hasher.update(data: Data(toolchainIdentity().utf8))
+        hasher.update(data: try read(entitlements))
+        hasher.update(data: try read(packageRoot.appending(path: "Package.swift")))
         for target in ["Sources/VZKit", "Sources/VZKitObjC"] {
             let root = packageRoot.appending(path: target)
             let paths = (FileManager.default.enumerator(atPath: root.path)?
@@ -195,10 +200,41 @@ struct RunCommand: ParsableCommand {
                 guard FileManager.default.fileExists(atPath: file.path, isDirectory: &isDir),
                       !isDir.boolValue else { continue }
                 hasher.update(data: Data("\(target)/\(path)".utf8))
-                hasher.update(data: try Data(contentsOf: file))
+                hasher.update(data: try read(file))
             }
         }
         return String(hasher.finalize().hexString.prefix(32))
+    }
+
+    /// Active developer dir plus its Xcode version stamp, without
+    /// spawning a toolchain subprocess (which would tax the fast path).
+    /// A toolchain upgrade must invalidate cached binaries — the old
+    /// always-run `swift build` got that from SPM for free. Best-effort:
+    /// a CLT-only setup has no version.plist, and a missing stamp just
+    /// means path-only identity, as before this existed.
+    private static func toolchainIdentity() -> String {
+        let developerDir = ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
+            ?? (try? FileManager.default.destinationOfSymbolicLink(
+                atPath: "/var/db/xcode_select_link"
+            ))
+            ?? ""
+        let versionPlist = URL(filePath: developerDir)
+            .deletingLastPathComponent()
+            .appending(path: "version.plist")
+        let stamp = (try? Data(contentsOf: versionPlist)) ?? Data()
+        return developerDir + ":" + stamp.hexString
+    }
+
+    /// Cache-key inputs must read successfully — substituting empty data
+    /// would compute a colliding key and serve a stale binary.
+    private static func read(_ url: URL) throws -> Data {
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            throw RunError(
+                message: "could not read cache-key input \(url.path): \(error.localizedDescription)"
+            )
+        }
     }
 
     /// Run `binary` to completion, returning its exit status. Returns nil
@@ -221,6 +257,9 @@ struct RunCommand: ParsableCommand {
             throw error
         }
         process.waitUntilExit()
+        if process.terminationReason == .uncaughtSignal {
+            return 128 + process.terminationStatus
+        }
         return process.terminationStatus
     }
 
@@ -275,6 +314,11 @@ struct RunCommand: ParsableCommand {
         try process.run()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw RunError(
+                message: "\(path) \(args.joined(separator: " ")) exited \(process.terminationStatus)"
+            )
+        }
         return String(decoding: data, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
