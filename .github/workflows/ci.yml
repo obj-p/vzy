@@ -59,3 +59,15 @@ jobs:
 
       - name: Test
         run: swift test
+
+      # Drift guard for the run-only manifest: stage the tarball's package
+      # tree exactly as release.yml does and build it, so a Package.swift
+      # change that isn't mirrored in scripts/Package.run.swift fails here
+      # on every PR instead of after a release ships.
+      - name: Verify run-only package
+        run: |
+          STAGE="$(mktemp -d)"
+          mkdir "$STAGE/Sources"
+          cp scripts/Package.run.swift "$STAGE/Package.swift"
+          cp -R Sources/VZKit Sources/VZKitObjC "$STAGE/Sources/"
+          swift build --package-path "$STAGE"

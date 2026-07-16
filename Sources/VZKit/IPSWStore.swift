@@ -130,14 +130,28 @@ public enum IPSWStore {
         return cacheDirectory.appending(path: "\(prefix)-\(filename)")
     }
 
-    /// Delete a cache entry left by the pre-hash naming scheme (bare
-    /// basename). Its source URL is unknown, so it can't be adopted as
-    /// this URL's content — remove it rather than migrate it.
-    static func reapLegacyCacheEntry(for remote: URL, in directory: URL = cacheDirectory) {
-        let legacy = directory.appending(path: remote.lastPathComponent)
-        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
-        Log.info("removing stale IPSW cache entry from the old naming scheme: \(legacy.path)")
-        try? FileManager.default.removeItem(at: legacy)
+    /// Bump when `cacheDestination`'s key derivation changes. Entries keyed
+    /// by an old scheme are unreachable under the new one and would strand
+    /// multi-GB files forever, so a version mismatch clears the cache once.
+    static let cacheSchemeVersion = "2"
+
+    /// Create the cache directory and clear it if it was written under a
+    /// different key scheme. The marker file records the scheme in use.
+    static func ensureCacheSchemeVersion(in directory: URL = cacheDirectory) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let marker = directory.appending(path: "cache-version")
+        if (try? String(contentsOf: marker, encoding: .utf8)) == cacheSchemeVersion {
+            return
+        }
+        let entries = (try? fm.contentsOfDirectory(atPath: directory.path)) ?? []
+        for entry in entries {
+            try? fm.removeItem(at: directory.appending(path: entry))
+        }
+        if !entries.isEmpty {
+            Log.info("IPSW cache key scheme changed; cleared \(directory.path)")
+        }
+        try Data(cacheSchemeVersion.utf8).write(to: marker)
     }
 
     /// Throw unless the download response is a success. `URLSession.download`
@@ -154,10 +168,7 @@ public enum IPSWStore {
 
     private static func downloadIfNeeded(remote: URL) async throws -> URL {
         let destination = try cacheDestination(for: remote)
-        try FileManager.default.createDirectory(
-            at: cacheDirectory, withIntermediateDirectories: true
-        )
-        reapLegacyCacheEntry(for: remote)
+        try ensureCacheSchemeVersion()
         if FileManager.default.fileExists(atPath: destination.path) {
             Log.info("using cached IPSW at \(destination.path)")
             return destination

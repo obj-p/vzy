@@ -81,19 +81,27 @@ struct IPSWStoreTests {
         #expect(tokenB == bare)
     }
 
-    @Test func reapLegacyCacheEntryRemovesBareBasenameFile() throws {
-        let url = try #require(URL(string: "https://example.com/restore.ipsw"))
+    @Test func staleCacheSchemeIsClearedOnceThenPreserved() throws {
         try BundleFixture.withDirectory { dir in
-            let legacy = dir.appending(path: "restore.ipsw")
-            let hashed = dir.appending(path: "abcdef123456-restore.ipsw")
-            try Data("old".utf8).write(to: legacy)
-            try Data("new".utf8).write(to: hashed)
+            let stale = dir.appending(path: "restore.ipsw")
+            try Data("old".utf8).write(to: stale)
 
-            IPSWStore.reapLegacyCacheEntry(for: url, in: dir)
-            #expect(!FileManager.default.fileExists(atPath: legacy.path))
-            #expect(FileManager.default.fileExists(atPath: hashed.path))
+            try IPSWStore.ensureCacheSchemeVersion(in: dir)
+            #expect(!FileManager.default.fileExists(atPath: stale.path))
 
-            IPSWStore.reapLegacyCacheEntry(for: url, in: dir)
+            let kept = dir.appending(path: "abcdef123456-restore.ipsw")
+            try Data("new".utf8).write(to: kept)
+            try IPSWStore.ensureCacheSchemeVersion(in: dir)
+            #expect(FileManager.default.fileExists(atPath: kept.path))
+        }
+    }
+
+    @Test func ensureCacheSchemeVersionCreatesDirectoryAndMarker() throws {
+        try BundleFixture.withDirectory { dir in
+            let cache = dir.appending(path: "nested/ipsw")
+            try IPSWStore.ensureCacheSchemeVersion(in: cache)
+            let marker = cache.appending(path: "cache-version")
+            #expect(try String(contentsOf: marker, encoding: .utf8) == IPSWStore.cacheSchemeVersion)
         }
     }
 
