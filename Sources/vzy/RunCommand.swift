@@ -48,16 +48,39 @@ struct RunCommand: ParsableCommand {
         )
         let binary = cacheRoot.appending(path: "bin/\(key)")
 
-        // Fast path. A launch failure (evicted between check and exec)
-        // falls through to a rebuild.
-        if FileManager.default.fileExists(atPath: binary.path),
-           let status = Self.launch(binary, arguments: scriptArgs) {
+        // Fast path: the touch refreshes the LRU signal the sweep reads;
+        // a missing binary (never built, or evicted between check and
+        // exec) returns nil and falls through to a build.
+        try? FileManager.default.setAttributes(
+            [.modificationDate: Date()], ofItemAtPath: binary.path
+        )
+        if let status = try Self.launch(binary, arguments: scriptArgs) {
             Darwin.exit(status)
         }
 
+        try Self.buildAndPublish(
+            binary: binary, cacheRoot: cacheRoot, source: source,
+            manifest: manifest, entitlements: entitlements
+        )
+
+        guard let status = try Self.launch(binary, arguments: scriptArgs) else {
+            throw RunError(message: "binary vanished after publish: \(binary.path)")
+        }
+        Darwin.exit(status)
+    }
+
+    /// Build the script in the shared package and publish the signed
+    /// binary by atomic rename. Serializes on `.build.lock`, which is
+    /// released when this returns — before the caller execs, so a script
+    /// holding a VM for minutes never blocks other builds. The lock also
+    /// makes this the one safe place to sweep the cache.
+    static func buildAndPublish(
+        binary: URL, cacheRoot: URL, source: String, manifest: String, entitlements: URL
+    ) throws {
         let packageDir = cacheRoot.appending(path: "package")
         let stagingDir = cacheRoot.appending(path: "staging")
-        for dir in [packageDir, stagingDir, cacheRoot.appending(path: "bin")] {
+        let binDir = cacheRoot.appending(path: "bin")
+        for dir in [stagingDir, binDir] {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
@@ -74,33 +97,58 @@ struct RunCommand: ParsableCommand {
                 throw RunError(message: "flock failed: errno=\(errno)")
             }
         }
+        defer { flock(lockFd, LOCK_UN) }
+
+        sweepCache(cacheRoot: cacheRoot, binDir: binDir, stagingDir: stagingDir)
 
         // Re-check under the lock: a queued waiter for the same script
         // finds the binary its predecessor just published.
-        if !FileManager.default.fileExists(atPath: binary.path) {
-            try Self.synthesizePackage(at: packageDir, source: source, manifest: manifest)
-            try Self.sh("/usr/bin/swift", ["build", "-c", "release", "--package-path", packageDir.path])
-            let binDir = try Self.capture(
-                "/usr/bin/swift",
-                ["build", "-c", "release", "--package-path", packageDir.path, "--show-bin-path"]
-            )
-            let built = URL(filePath: binDir).appending(path: "vzscript")
-            let staged = stagingDir.appending(path: UUID().uuidString)
-            try FileManager.default.copyItem(at: built, to: staged)
-            try Self.sh(
-                "/usr/bin/codesign",
-                ["--force", "--sign", "-", "--entitlements", entitlements.path, staged.path]
-            )
-            guard rename(staged.path, binary.path) == 0 else {
-                throw RunError(message: "could not publish \(binary.path): errno=\(errno)")
-            }
-        }
-        flock(lockFd, LOCK_UN) // release before exec — scripts may hold a VM for minutes
+        guard !FileManager.default.fileExists(atPath: binary.path) else { return }
 
-        guard let status = Self.launch(binary, arguments: scriptArgs) else {
-            throw RunError(message: "could not launch \(binary.path)")
+        try synthesizePackage(at: packageDir, source: source, manifest: manifest)
+        try sh("/usr/bin/swift", ["build", "-c", "release", "--package-path", packageDir.path])
+        let builtDir = try capture(
+            "/usr/bin/swift",
+            ["build", "-c", "release", "--package-path", packageDir.path, "--show-bin-path"]
+        )
+        let built = URL(filePath: builtDir).appending(path: "vzscript")
+        let staged = stagingDir.appending(path: UUID().uuidString)
+        try FileManager.default.copyItem(at: built, to: staged)
+        try sh(
+            "/usr/bin/codesign",
+            ["--force", "--sign", "-", "--entitlements", entitlements.path, staged.path]
+        )
+        guard rename(staged.path, binary.path) == 0 else {
+            throw RunError(message: "could not publish \(binary.path): errno=\(errno)")
         }
-        Darwin.exit(status)
+    }
+
+    static let binaryMaxAge: TimeInterval = 30 * 24 * 3600
+    static let stagingMaxAge: TimeInterval = 3600
+
+    /// Housekeeping, callable only under the build lock: evict script
+    /// binaries unused for `binaryMaxAge` (each fast-path use refreshes
+    /// mtime), remove staging leftovers from crashed builds, and clear
+    /// top-level entries from cache layouts this scheme replaced.
+    static func sweepCache(cacheRoot: URL, binDir: URL, stagingDir: URL) {
+        sweep(binDir, olderThan: binaryMaxAge)
+        sweep(stagingDir, olderThan: stagingMaxAge)
+        let fm = FileManager.default
+        let current: Set<String> = ["package", "bin", "staging", ".build.lock"]
+        for entry in (try? fm.contentsOfDirectory(atPath: cacheRoot.path)) ?? []
+            where !current.contains(entry) {
+            try? fm.removeItem(at: cacheRoot.appending(path: entry))
+        }
+    }
+
+    private static func sweep(_ dir: URL, olderThan maxAge: TimeInterval) {
+        let fm = FileManager.default
+        for entry in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] {
+            let url = dir.appending(path: entry)
+            guard let mtime = (try? fm.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
+                  Date().timeIntervalSince(mtime) > maxAge else { continue }
+            try? fm.removeItem(at: url)
+        }
     }
 
     /// The VZKit package the script compiles against. A Homebrew install
@@ -153,15 +201,24 @@ struct RunCommand: ParsableCommand {
         return String(hasher.finalize().hexString.prefix(32))
     }
 
-    /// Run `binary` to completion. Returns nil if it could not be launched.
-    static func launch(_ binary: URL, arguments: [String]) -> Int32? {
+    /// Run `binary` to completion, returning its exit status. Returns nil
+    /// only when the binary is missing (the caller rebuilds); any other
+    /// launch failure is thrown rather than masked as a cache miss.
+    static func launch(_ binary: URL, arguments: [String]) throws -> Int32? {
         let process = Process()
         process.executableURL = binary
         process.arguments = arguments
         do {
             try process.run()
         } catch {
-            return nil
+            let ns = error as NSError
+            let missing = (ns.domain == NSCocoaErrorDomain
+                && (ns.code == NSFileNoSuchFileError || ns.code == NSFileReadNoSuchFileError))
+                || (ns.domain == NSPOSIXErrorDomain && ns.code == Int(ENOENT))
+            if missing {
+                return nil
+            }
+            throw error
         }
         process.waitUntilExit()
         return process.terminationStatus
