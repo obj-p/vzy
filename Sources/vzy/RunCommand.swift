@@ -81,6 +81,9 @@ struct RunCommand: ParsableCommand {
     static func synthesizePackage(at dir: URL, source: String, packageRoot: URL) throws {
         let sourcesDir = dir.appending(path: "Sources/vzscript")
         try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+        let escapedRoot = packageRoot.path
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         let manifest = """
         // swift-tools-version: 6.0
         import PackageDescription
@@ -88,7 +91,7 @@ struct RunCommand: ParsableCommand {
         let package = Package(
             name: "vzscript",
             platforms: [.macOS(.v14)],
-            dependencies: [.package(name: \"vzy\", path: \"\(packageRoot.path)\")],
+            dependencies: [.package(name: \"vzy\", path: \"\(escapedRoot)\")],
             targets: [
                 .executableTarget(
                     name: "vzscript",

@@ -16,8 +16,11 @@ on:
     - cron: "0 5 * * 0"
   workflow_dispatch:
 
+# Label events get a unique group (via run_id) so applying `merge`
+# mid-run never cancels the in-progress required `ci` check; only a
+# new push supersedes a running build.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.action == 'labeled' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:

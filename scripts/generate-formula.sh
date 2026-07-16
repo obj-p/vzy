@@ -17,7 +17,7 @@ class Vzy < Formula
   url "${URL}"
   sha256 "${SHA256}"
 
-  depends_on :macos
+  depends_on macos: :sonoma
   depends_on arch: :arm64
 
   def install

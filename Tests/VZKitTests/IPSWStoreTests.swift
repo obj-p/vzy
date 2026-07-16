@@ -67,6 +67,16 @@ struct IPSWStoreTests {
         )
     }
 
+    @Test func cacheDestinationDiffersByScheme() throws {
+        let secure = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw"))
+        )
+        let insecure = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "http://cdn.example.com/restore.ipsw"))
+        )
+        #expect(secure != insecure)
+    }
+
     @Test func cacheDestinationIgnoresQueryAndFragment() throws {
         let tokenA = try IPSWStore.cacheDestination(
             for: #require(URL(string: "https://cdn.example.com/restore.ipsw?token=aaa"))

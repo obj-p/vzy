@@ -6,9 +6,10 @@ import Virtualization
 ///
 /// Apple ships restore images as `.ipsw` files at multi-GB URLs on the
 /// CDN. The cache lives at `~/.cache/vz/ipsw/` keyed by a hash of the
-/// full source URL plus its basename, so distinct URLs that share a
-/// filename can't collide. Multiple bundles installed from the same
-/// IPSW share one cached file.
+/// URL's scheme, host, port, and path plus its basename, so distinct
+/// URLs that share a filename can't collide, while query and fragment
+/// are excluded so rotating signed-URL tokens still hit the cache.
+/// Multiple bundles installed from the same IPSW share one cached file.
 ///
 /// Three input shapes resolve to a local IPSW file:
 ///
@@ -118,14 +119,14 @@ public enum IPSWStore {
 
     /// `<cacheDirectory>/<sha256 prefix>-<basename>`. The hash keeps
     /// distinct URLs that share a filename from colliding in the cache.
-    /// It covers host, port, and path only — never the query or fragment —
-    /// so a rotating signed-URL token still hits the cache.
+    /// It covers scheme, host, port, and path only — never the query or
+    /// fragment — so a rotating signed-URL token still hits the cache.
     static func cacheDestination(for remote: URL) throws -> URL {
         let filename = remote.lastPathComponent
         guard !filename.isEmpty, filename != "/" else {
             throw VMError("URL has no IPSW filename to cache under: \(remote.absoluteString)")
         }
-        let key = "\(remote.host() ?? ""):\(remote.port ?? -1)\(remote.path())"
+        let key = "\(remote.scheme ?? "")://\(remote.host() ?? ""):\(remote.port ?? -1)\(remote.path())"
         let prefix = SHA256.hash(data: Data(key.utf8)).hexString.prefix(12)
         return cacheDirectory.appending(path: "\(prefix)-\(filename)")
     }
