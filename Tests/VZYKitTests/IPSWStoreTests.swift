@@ -91,27 +91,58 @@ struct IPSWStoreTests {
         #expect(tokenB == bare)
     }
 
-    @Test func staleCacheSchemeIsClearedOnceThenPreserved() throws {
-        try BundleFixture.withDirectory { dir in
-            let stale = dir.appending(path: "restore.ipsw")
-            try Data("old".utf8).write(to: stale)
+    @Test func prepareClearsLegacyShapesAndPreservesUnknowns() throws {
+        try BundleFixture.withDirectory { base in
+            let fm = FileManager.default
+            try Data("old".utf8).write(to: base.appending(path: "restore.ipsw"))
+            try Data("2".utf8).write(to: base.appending(path: "cache-version"))
+            try Data("mine".utf8).write(to: base.appending(path: "user-notes.txt"))
+            try fm.createDirectory(at: base.appending(path: "v0"), withIntermediateDirectories: true)
+            try fm.createDirectory(at: base.appending(path: "other-dir"), withIntermediateDirectories: true)
 
-            try IPSWStore.ensureCacheSchemeVersion(in: dir)
-            #expect(!FileManager.default.fileExists(atPath: stale.path))
+            try IPSWStore.prepareCacheDirectory(in: base)
 
-            let kept = dir.appending(path: "abcdef123456-restore.ipsw")
-            try Data("new".utf8).write(to: kept)
-            try IPSWStore.ensureCacheSchemeVersion(in: dir)
-            #expect(FileManager.default.fileExists(atPath: kept.path))
+            #expect(fm.fileExists(atPath: base.appending(path: IPSWStore.cacheLayoutVersion).path))
+            #expect(!fm.fileExists(atPath: base.appending(path: "restore.ipsw").path))
+            #expect(!fm.fileExists(atPath: base.appending(path: "cache-version").path))
+            #expect(!fm.fileExists(atPath: base.appending(path: "v0").path))
+            #expect(fm.fileExists(atPath: base.appending(path: "user-notes.txt").path))
+            #expect(fm.fileExists(atPath: base.appending(path: "other-dir").path))
         }
     }
 
-    @Test func ensureCacheSchemeVersionCreatesDirectoryAndMarker() throws {
+    @Test func prepareKeepsCurrentVersionContents() throws {
+        try BundleFixture.withDirectory { base in
+            let entry = base.appending(path: "\(IPSWStore.cacheLayoutVersion)/abc-restore.ipsw")
+            try FileManager.default.createDirectory(
+                at: entry.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("cached".utf8).write(to: entry)
+            try IPSWStore.prepareCacheDirectory(in: base)
+            #expect(FileManager.default.fileExists(atPath: entry.path))
+        }
+    }
+
+    @Test func queryInclusiveKeyDiffersByQuery() throws {
+        let tokenA = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw?build=23A")),
+            includeQuery: true
+        )
+        let tokenB = try IPSWStore.cacheDestination(
+            for: #require(URL(string: "https://cdn.example.com/restore.ipsw?build=24B")),
+            includeQuery: true
+        )
+        #expect(tokenA != tokenB)
+    }
+
+    @Test func sha256OfFileMatchesKnownDigest() throws {
         try BundleFixture.withDirectory { dir in
-            let cache = dir.appending(path: "nested/ipsw")
-            try IPSWStore.ensureCacheSchemeVersion(in: cache)
-            let marker = cache.appending(path: "cache-version")
-            #expect(try String(contentsOf: marker, encoding: .utf8) == IPSWStore.cacheSchemeVersion)
+            let file = dir.appending(path: "hello.bin")
+            try Data("hello".utf8).write(to: file)
+            #expect(
+                try IPSWStore.sha256OfFile(file)
+                    == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+            )
         }
     }
 
