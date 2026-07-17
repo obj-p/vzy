@@ -11,6 +11,11 @@ import Virtualization
 /// are excluded so rotating signed-URL tokens still hit the cache.
 /// Multiple bundles installed from the same IPSW share one cached file.
 ///
+/// Known limit: a host that selects between different images by query
+/// string alone collides onto one entry. Content-addressed resolve for
+/// query-bearing URLs is designed in issue #3; build it if such a URL
+/// ever shows up in practice.
+///
 /// Three input shapes resolve to a local IPSW file:
 ///
 ///   - **Local path** (`/foo/restore.ipsw`): used verbatim, no download.
