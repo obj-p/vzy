@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import VZKit
+import VZYKit
 
 /// Create a fresh bundle from an IPSW and run `VZMacOSInstaller` into it.
 ///
@@ -121,7 +121,7 @@ struct InstallCommand: AsyncParsableCommand {
             \(bundle.url.path)
 
           Re-run without --skip-install to drive VZMacOSInstaller against
-          \(ipswURL.lastPathComponent).
+          \(ipswURL.path).
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         """

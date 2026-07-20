@@ -17,6 +17,13 @@ public struct VMError: LocalizedError, Sendable {
     }
 }
 
+public extension Sequence<UInt8> {
+    /// Lowercase hex encoding, two digits per byte.
+    var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
+}
+
 public func step(_ message: String) {
     FileHandle.standardError.write(Data("==> \(message)\n".utf8))
 }

@@ -1,6 +1,6 @@
 import Foundation
 import Virtualization
-import VZKitObjC
+import VZYKitObjC
 
 /// In-process VNC server wrapping the private `_VZVNCServer` SPI via a
 /// tiny Obj-C bridge (`VZVNCBridge`). We go through Obj-C rather than

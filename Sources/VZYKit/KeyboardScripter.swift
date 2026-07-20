@@ -8,7 +8,7 @@ public extension KeyboardScripter {
     /// The keys Setup Assistant navigation needs (Tab/Return/Space/Esc/
     /// arrows/function keys). Printable characters are typed directly as
     /// keysyms by the VNC runner, so they aren't enumerated here.
-    enum Key: Hashable, Sendable {
+    enum Key: Hashable, Sendable, CaseIterable {
         case tab
         case returnKey
         case space

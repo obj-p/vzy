@@ -1,15 +1,16 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// Run-only manifest staged as Package.swift in the release tarball's
+// libexec tree. `vzy run` script builds resolve this instead of the
+// repo manifest, so they never fetch swift-argument-parser (a
+// dependency of the already-built CLI, not of VZYKit) and the tarball
+// needs no Tests/ or Sources/vzy.
 let package = Package(
     name: "vzy",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "vzy", targets: ["vzy"]),
         .library(name: "VZYKit", targets: ["VZYKit"]),
-    ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
     ],
     targets: [
         .target(
@@ -22,17 +23,6 @@ let package = Package(
         .target(
             name: "VZYKit",
             dependencies: ["VZYKitObjC"]
-        ),
-        .executableTarget(
-            name: "vzy",
-            dependencies: [
-                "VZYKit",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ]
-        ),
-        .testTarget(
-            name: "VZYKitTests",
-            dependencies: ["VZYKit"]
         ),
     ]
 )

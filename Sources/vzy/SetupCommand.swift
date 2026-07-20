@@ -2,7 +2,7 @@ import AppKit
 import ArgumentParser
 import Darwin
 import Foundation
-import VZKit
+import VZYKit
 
 /// Drive Setup Assistant over the VNC transport (`_VZVNCServer` SPI +
 /// in-process RFB client), then provision SSH. Restores from a `post-sa`
@@ -186,9 +186,7 @@ struct SetupCommand: AsyncParsableCommand {
     /// and tries again.
     static func provisionSSHSteps(pubkey: String) -> [SetupAssistantSequence.Step] {
         // pubkey + trailing newline so authorized_keys ends with \n.
-        let pubkeyHex = (pubkey + "\n").utf8
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let pubkeyHex = (pubkey + "\n").utf8.hexString
 
         // Persistent bootstrap daemon. Runs `launchctl enable +
         // bootstrap` of ssh.plist at every boot, and re-asserts the
@@ -210,9 +208,7 @@ struct SetupCommand: AsyncParsableCommand {
         </dict>
         </plist>
         """
-        let bootstrapPlistHex = bootstrapPlist.utf8
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let bootstrapPlistHex = bootstrapPlist.utf8.hexString
 
         // Restoring post-sa and logging in re-runs the per-user first-login
         // Setup Assistant (Apple Account, Location Services, …) in a screen

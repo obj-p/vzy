@@ -9,7 +9,7 @@ guests with `Virtualization.framework`.
 
 It can install macOS from an IPSW into a bundle, boot and stop that VM, create
 and restore snapshots, provision SSH through Setup Assistant automation, and run
-Swift scripts against `VZKit`.
+Swift scripts against `VZYKit`.
 
 ## Requirements
 
@@ -67,7 +67,7 @@ vzy stop ~/VMs/work.vm
 
 ## Swift Scripts
 
-`vzy run` compiles and signs a Swift file against `VZKit`, then runs it with
+`vzy run` compiles and signs a Swift file against `VZYKit`, then runs it with
 the virtualization entitlement. For example, the bundled
 [`guest-info.swift`](examples/guest-info.swift) script boots a guest, waits for
 SSH, prints its macOS version, and stops it:
